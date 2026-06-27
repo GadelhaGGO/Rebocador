@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Painel Ferroviário - Bloqueio de Tração Própria</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 10px;
+            background-color: #1a1a1a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        h2 {
+            margin: 5px 0 10px 0;
+            font-size: 1.1rem;
+            text-align: center;
+            color: #e0e0e0;
+        }
+
+        /* PAINEL DE CONTROLE NO TOPO */
+        .controls {
+            width: 100%;
+            max-width: 420px;
+            background: #2d2d2d;
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            color: #aaa;
+            margin: 6px 0 4px 0;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .grid-select {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        /* Seletores de Estado do Trem */
+        .grid-status-train {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
+        .status-selector {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e1e1e;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            font-size: 0.75rem;
+        }
+        .status-toggle {
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            background-color: #218838;
+            box-shadow: none;
+        }
+        .status-toggle.fault {
+            background-color: #dc3545;
+        }
+
+        .grid-modes {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+        }
+
+        .lever-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            background: #1e1e1e;
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+
+        .grid-commands {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        /* VIA FÉRREA EMBAIXO */
+        .railway-container {
+            width: 100%;
+            height: 140px;
+            background: #222;
+            border-bottom: 4px solid #444;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.7);
+            margin-top: 5px;
+        }
+        .rail {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: #666;
+        }
+
+        /* Estrutura Visual dos Trens */
+        .train {
+            display: flex;
+            position: absolute;
+            bottom: 19px;
+            transition: left 0.1s linear;
+            align-items: flex-end;
+        }
+        .car {
+            width: 22px;
+            height: 25px;
+            background-color: #777;
+            border: 1px solid #3d3d3d;
+            border-top-left-radius: 2px;
+            border-top-right-radius: 2px;
+            position: relative;
+            margin-right: 1px;
+        }
+        .car::before {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 2px;
+            width: 16px;
+            height: 6px;
+            background-color: #bbb;
+            border-radius: 1px;
+        }
+        
+        /* Destaque visual de falha */
+        .train.has-fault .car {
+            background-color: #4a3b3b;
+            border-color: #dc3545;
+        }
+
+        .cabin {
+            width: 25px;
+            height: 28px;
+            background-color: #0056b3;
+            border: 1px solid #111;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+        .cabin::before {
+            content: '';
+            position: absolute;
+            top: 4px;
+            width: 8px;
+            height: 8px;
+            background-color: #fff;
+        }
+
+        .mode-display {
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ffc107;
+            color: #000;
+            font-size: 0.65rem;
+            font-weight: bold;
+            padding: 1px 4px;
+            border-radius: 3px;
+            white-space: nowrap;
+            display: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #train1 .cabin-left { border-top-left-radius: 8px; }
+        #train1 .cabin-left::before { left: 3px; border-top-left-radius: 4px; }
+        #train1 .cabin-right { border-top-right-radius: 4px; }
+        #train1 .cabin-right::before { right: 3px; }
+        #train2 .cabin-left { border-top-left-radius: 4px; }
+        #train2 .cabin-left::before { left: 3px; }
+        #train2 .cabin-right { border-top-right-radius: 8px; }
+        #train2 .cabin-right::before { right: 3px; border-top-right-radius: 4px; }
+
+        .cabin.active {
+            background-color: #218838 !important;
+            box-shadow: 0 0 10px #28a745;
+        }
+
+        /* Botões */
+        button {
+            padding: 10px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            background-color: #444;
+            box-shadow: 0 3px 0 #1a1a1a;
+            transition: all 0.05s;
+        }
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #1a1a1a;
+        }
+
+        .btn-select { background-color: #004085; font-size: 0.75rem; padding: 6px;}
+        .btn-select.active { background-color: #218838; border: 1.5px solid #fff; }
+        
+        .btn-yellow { background-color: #ffc107; color: #000; box-shadow: 0 3px 0 #b58700; }
+        .btn-yellow.active { background-color: #d39e00; border: 1.5px solid #000; font-weight: 900;}
+
+        .btn-mode-spec { background-color: #5a6268; font-size: 0.75rem; padding: 6px 2px; }
+        .btn-mode-spec.active { background-color: #138496; border: 1px solid #fff; }
+        
+        .btn-lever { background-color: #343a40; font-size: 0.75rem; padding: 6px; }
+        .btn-lever.active { background-color: #e28743; color: #000; border: 1px solid #fff; }
+
+        .btn-move { background-color: #e46012; color: #fff; }
+        .btn-action { grid-column: span 2; background-color: #c82333; padding: 10px; }
+        
+        .status-badge {
+            text-align: center;
+            font-weight: bold;
+            color: #ffc107;
+            font-size: 0.85rem;
+            margin: 5px 0;
+            min-height: 38px;
+            padding: 0 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Simulador - Bloqueio de Tração Própria</h2>
+
+    <div class="controls">
+        <div class="section-title">Condição Operacional dos Trens</div>
+        <div class="grid-status-train">
+            <div class="status-selector">
+                <span>Trem 1:</span>
+                <button id="toggle-t1" class="status-toggle fault" onclick="toggleTrainStatus(1)">COM FALHA</button>
+            </div>
+            <div class="status-selector">
+                <span>Trem 2:</span>
+                <button id="toggle-t2" class="status-toggle" onclick="toggleTrainStatus(2)">NORMAL</button>
+            </div>
+        </div>
+
+        <div class="section-title">1. Assumir Cabine de Comando</div>
+        <div class="grid-select">
+            <button class="btn-select" id="btn-t1-c1" onclick="selectCabin('t1-c1')">T1 - Principal</button>
+            <button class="btn-select" id="btn-t1-c2" onclick="selectCabin('t1-c2')">T1 - Intermediária</button>
+            <button class="btn-select" id="btn-t2-c1" onclick="selectCabin('t2-c1')">T2 - Intermediária</button>
+            <button class="btn-select" id="btn-t2-c2" onclick="selectCabin('t2-c2')">T2 - Principal</button>
+        </div>
+
+        <div class="section-title">2. Sinalização e Desvios</div>
+        <div class="grid-modes">
+            <button class="btn-yellow" id="btnIC" onclick="toggleIC()">IC</button>
+            <button class="btn-mode-spec" id="btnMANUAL" onclick="toggleManual()">Manual</button>
+            <button class="btn-mode-spec" id="btnMCS" onclick="setMode('MCS')">MCS</button>
+            <button class="btn-mode-spec" id="btnAM" onclick="setMode('AM')">AM</button>
+            <button class="btn-mode-spec" id="btnFRE" onclick="setMode('FRE')">Reboque</button>
+        </div>
+
+        <div class="section-title">3. Alavanca Inversora de Tração</div>
+        <div class="lever-container">
+            <button class="btn-lever" id="lever-FRENTE" onclick="setLever('FRENTE')">FRENTE</button>
+            <button class="btn-lever" id="lever-NEUTRO" onclick="setLever('NEUTRO')">NEUTRO</button>
+            <button class="btn-lever" id="lever-RE" onclick="setLever('RE')">RÉ</button>
+        </div>
+
+        <div class="section-title">4. Manipulador de Tração</div>
+        <div class="grid-commands">
+            <button class="btn-move" id="btnBack">◀ TRÁS</button>
+            <button class="btn-move" id="btnForward">FRENTE ▶</button>
+            <button class="btn-action" onclick="uncouple()">Desacoplar Trens</button>
+        </div>
+    </div>
+
+    <div class="status-badge" id="statusText">Trens Desacoplados. Selecione uma cabine para operar.</div>
+
+    <div class="railway-container">
+        <div id="train1" class="train has-fault" style="left: 10px;">
+            <div id="t1-c1" class="cabin cabin-left"><div class="mode-display"></div></div>
+            <div class="car"></div><div class="car"></div><div class="car"></div><div class="car"></div>
+            <div id="t1-c2" class="cabin cabin-right"><div class="mode-display"></div></div>
+        </div>
+
+        <div id="train2" class="train" style="left: 215px;">
+            <div id="t2-c1" class="cabin cabin-left"><div class="mode-display"></div></div>
+            <div class="car"></div><div class="car"></div><div class="car"></div><div class="car"></div>
+            <div id="t2-c2" class="cabin cabin-right"><div class="mode-display"></div></div>
+        </div>
+        
+        <div class="rail"></div>
+    </div>
+
+    <script>
+        const t1 = document.getElementById('train1');
+        const t2 = document.getElementById('train2');
+        const statusText = document.getElementById('statusText');
+
+        let pos1 = 10;
+        let pos2 = 215;
+        let activeCabin = null;
+        let isCoupled = false;
+        
+        const trainFaults = { 1: true, 2: false };
+
+        const cabinStates = {
+            't1-c1': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' },
+            't1-c2': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' },
+            't2-c1': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' },
+            't2-c2': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' }
+        };
+
+        const trainWidth = 142;
+        const step = 3;
+        let moveInterval = null;
+
+        function updatePositions() {
+            t1.style.left = pos1 + 'px';
+            t2.style.left = pos2 + 'px';
+        }
+
+        function toggleTrainStatus(trainNum) {
+            trainFaults[trainNum] = !trainFaults[trainNum];
+            const btn = document.getElementById('toggle-t' + trainNum);
+            const trainEl = document.getElementById('train' + trainNum);
+
+            if (trainFaults[trainNum]) {
+                btn.innerText = "COM FALHA";
+                btn.classList.add('fault');
+                trainEl.classList.add('has-fault');
+            } else {
+                btn.innerText = "NORMAL";
+                btn.classList.remove('fault');
+                trainEl.classList.remove('has-fault');
+            }
+        }
+
+        function selectCabin(cabinId) {
+            document.querySelectorAll('.cabin').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.btn-select').forEach(b => b.classList.remove('active'));
+
+            activeCabin = cabinId;
+            document.getElementById(cabinId).classList.add('active');
+            document.getElementById('btn-' + cabinId).classList.add('active');
+
+            const state = cabinStates[activeCabin];
+            document.getElementById('btnIC').classList.toggle('active', state.isIC);
+            document.getElementById('btnMANUAL').classList.toggle('active', state.isManual);
+            
+            document.querySelectorAll('.btn-mode-spec').forEach(b => {
+                if(b.id !== 'btnMANUAL') b.classList.remove('active');
+            });
+            if (state.mode) document.getElementById('btn' + state.mode).classList.add('active');
+
+            setLever(state.lever, true);
+            updateAllCabinDisplays();
+        }
+
+        function toggleIC() {
+            if (!activeCabin) return;
+            cabinStates[activeCabin].isIC = !cabinStates[activeCabin].isIC;
+            document.getElementById('btnIC').classList.toggle('active', cabinStates[activeCabin].isIC);
+            updateAllCabinDisplays();
+        }
+
+        function toggleManual() {
+            if (!activeCabin) return;
+            cabinStates[activeCabin].isManual = !cabinStates[activeCabin].isManual;
+            document.getElementById('btnMANUAL').classList.toggle('active', cabinStates[activeCabin].isManual);
+            updateAllCabinDisplays();
+        }
+
+        function setMode(mode) {
+            if (!activeCabin) return;
+            const state = cabinStates[activeCabin];
+            state.mode = (state.mode === mode) ? '' : mode;
+
+            document.querySelectorAll('.btn-mode-spec').forEach(b => {
+                if(b.id !== 'btnMANUAL') b.classList.remove('active');
+            });
+            if (state.mode) document.getElementById('btn' + state.mode).classList.add('active');
+            
+            updateAllCabinDisplays();
+        }
+
+        function setLever(position, syncOnly = false) {
+            if (!activeCabin) return;
+            if (!syncOnly) cabinStates[activeCabin].lever = position;
+
+            document.querySelectorAll('.btn-lever').forEach(b => b.classList.remove('active'));
+            document.getElementById('lever-' + position).classList.add('active');
+        }
+
+        function updateAllCabinDisplays() {
+            for (const cabinId in cabinStates) {
+                const display = document.getElementById(cabinId).querySelector('.mode-display');
+                const state = cabinStates[cabinId];
+                let siglas = [];
+
+                if (state.isIC) siglas.push('FPI');
+                if (state.isManual) siglas.push('MAN');
+                if (state.mode) siglas.push(state.mode);
+
+                if (siglas.length > 0) {
+                    display.innerText = siglas.join(' ');
+                    display.style.display = 'block';
+                } else {
+                    display.innerText = '';
+                    display.style.display = 'none';
+                }
+            }
+        }
+
+        function move(direction) {
+            if (!activeCabin) return;
+
+            const isTrain1Active = activeCabin.startsWith('t1');
+            const activeTrainNum = isTrain1Active ? 1 : 2;
+
+            // --- REGRA DE OURO: TREM COM FALHA NÃO POSSUI TRAÇÃO PRÓPRIA ---
+            if (trainFaults[activeTrainNum]) {
+                statusText.innerHTML = `❌ FALHA DE TRAÇÃO CRÍTICA!<br><small>O Trem ${activeTrainNum} está avariado. Assuma o controle do Trem Rebocador.</small>`;
+                statusText.style.color = "#dc3545";
+                return; 
+            }
+
+            // --- REGRA DE VALIDAÇÃO DO REBOQUE (FALSO MANUAL) ---
+            if (isCoupled) {
+                // Checa se o bloco oposto (se estiver em falha) liberou o reboque via Falso Manual
+                if (trainFaults[1]) {
+                    const stateT1C2 = cabinStates['t1-c2'];
+                    const fmT1Pronto = stateT1C2.isManual && (stateT1C2.lever === 'FRENTE');
+                    if (!fmT1Pronto) {
+                        statusText.innerHTML = `⚠️ BLOQUEIO: Trem 1 está em Falha!<br><small>Monte Falso Manual em T1 - Intermediária (Manual + Alavanca em FRENTE)</small>`;
+                        statusText.style.color = "#dc3545";
+                        return;
+                    }
+                }
+
+                if (trainFaults[2]) {
+                    const stateT2C1 = cabinStates['t2-c1'];
+                    const fmT2Pronto = stateT2C1.isManual && (stateT2C1.lever === 'FRENTE');
+                    if (!fmT2Pronto) {
+                        statusText.innerHTML = `⚠️ BLOQUEIO: Trem 2 está em Falha!<br><small>Monte Falso Manual em T2 - Intermediária (Manual + Alavanca em FRENTE)</small>`;
+                        statusText.style.color = "#dc3545";
+                        return;
+                    }
+                }
+
+                statusText.innerText = "Rebocador tracionando o trem avariado com sucesso! 🔗";
+                statusText.style.color = "#28a745";
+            }
+
+            let modifier = 1;
+            if (activeCabin === 't1-c1' || activeCabin === 't2-c1') {
+                modifier = (direction === 'forward') ? -1 : 1;
+            } else {
+                modifier = (direction === 'forward') ? 1 : -1;
+            }
+
+            if (isCoupled) {
+                pos1 += step * modifier;
+                pos2 += step * modifier;
+                if (pos1 < 0) { pos1 = 0; pos2 = trainWidth; }
+                if (pos2 > window.innerWidth - trainWidth) { pos2 = window.innerWidth - trainWidth; pos1 = pos2 - trainWidth; }
+            } else {
+                if (isTrain1Active) {
+                    pos1 += step * modifier;
+                    if (pos1 < 0) pos1 = 0;
+                    if (pos1 + trainWidth >= pos2) { pos1 = pos2 - trainWidth; couple(); }
+                } else {
+                    pos2 += step * modifier;
+                    if (pos2 > window.innerWidth - trainWidth) pos2 = window.innerWidth - trainWidth;
+                    if (pos2 <= pos1 + trainWidth) { pos2 = pos1 + trainWidth; couple(); }
+                }
+            }
+            updatePositions();
+        }
+
+        function couple() {
+            isCoupled = true;
+            statusText.innerText = "Trens Encostados. Arme o Falso Manual na cabine interna do trem avariado.";
+            statusText.style.color = "#ffc107";
+        }
+
+        function uncouple() {
+            if (!isCoupled) return;
+            isCoupled = false;
+            pos1 -= 15;
+            pos2 += 15;
+            updatePositions();
+            statusText.innerText = "Trens Desacoplados.";
+            statusText.style.color = "#ffc107";
+        }
+
+        const btnForward = document.getElementById('btnForward');
+        const btnBack = document.getElementById('btnBack');
+
+        function startMove(dir) {
+            if (moveInterval) clearInterval(moveInterval);
+            move(dir);
+            moveInterval = setInterval(() => move(dir), 80);
+        }
+        function stopMove() { clearInterval(moveInterval); }
+
+        btnForward.addEventListener('touchstart', (e) => { e.preventDefault(); startMove('forward'); });
+        btnForward.addEventListener('touchend', stopMove);
+        btnForward.addEventListener('mousedown', () => startMove('forward'));
+        btnForward.addEventListener('mouseup', stopMove);
+
+        btnBack.addEventListener('touchstart', (e) => { e.preventDefault(); startMove('backward'); });
+        btnBack.addEventListener('touchend', stopMove);
+        btnBack.addEventListener('mousedown', () => startMove('backward'));
+        btnBack.addEventListener('mouseup', stopMove);
+
+        updatePositions();
+    </script>
+</body>
+</html>
