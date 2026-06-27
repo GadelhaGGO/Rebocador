@@ -127,7 +127,7 @@
             background: #666;
         }
 
-        /* Estrutura Visual dos Trens */
+        /* Estrutura Visual dos Trens (Composição original: 2 cabines + 4 carros = 6 no total) */
         .train {
             display: flex;
             position: absolute;
@@ -156,6 +156,26 @@
             border-radius: 1px;
         }
         
+        /* Texto FPI flutuando nos carros do respectivo trem */
+        .car::after {
+            content: 'FPI';
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.55rem;
+            background: #ffc107;
+            color: #000;
+            padding: 0 2px;
+            border-radius: 2px;
+            font-weight: bold;
+            display: none;
+        }
+        
+        .train.show-fpi .car::after {
+            display: block;
+        }
+
         /* Destaque visual de falha */
         .train.has-fault .car {
             background-color: #4a3b3b;
@@ -165,7 +185,7 @@
         .cabin {
             width: 25px;
             height: 28px;
-            background-color: #0056b3;
+            background-color: #0056b3; /* Azul quando sem comando / sem líder */
             border: 1px solid #111;
             position: relative;
             transition: background-color 0.2s;
@@ -205,7 +225,7 @@
         #train2 .cabin-right::before { right: 3px; border-top-right-radius: 4px; }
 
         .cabin.active {
-            background-color: #218838 !important;
+            background-color: #218838 !important; /* Verde quando com comando / ativa */
             box-shadow: 0 0 10px #28a745;
         }
 
@@ -240,6 +260,8 @@
         .btn-lever.active { background-color: #e28743; color: #000; border: 1px solid #fff; }
 
         .btn-move { background-color: #e46012; color: #fff; }
+        .btn-socorro { background-color: #17a2b8; color: #fff; }
+        .btn-socorro.active { background-color: #117a8b; border: 1.5px solid #fff; }
         .btn-action { grid-column: span 2; background-color: #c82333; padding: 10px; }
         
         .status-badge {
@@ -281,7 +303,7 @@
         <div class="section-title">2. Sinalização e Desvios</div>
         <div class="grid-modes">
             <button class="btn-yellow" id="btnIC" onclick="toggleIC()">IC</button>
-            <button class="btn-mode-spec" id="btnMANUAL" onclick="toggleManual()">Manual</button>
+            <button class="btn-mode-spec" id="btnOFF" onclick="toggleOFF()">OFF</button>
             <button class="btn-mode-spec" id="btnMCS" onclick="setMode('MCS')">MCS</button>
             <button class="btn-mode-spec" id="btnAM" onclick="setMode('AM')">AM</button>
             <button class="btn-mode-spec" id="btnFRE" onclick="setMode('FRE')">Reboque</button>
@@ -296,7 +318,7 @@
 
         <div class="section-title">4. Manipulador de Tração</div>
         <div class="grid-commands">
-            <button class="btn-move" id="btnBack">◀ TRÁS</button>
+            <button class="btn-socorro" id="btnSocorro" onclick="toggleSocorro()">MODO SOCORRO</button>
             <button class="btn-move" id="btnForward">FRENTE ▶</button>
             <button class="btn-action" onclick="uncouple()">Desacoplar Trens</button>
         </div>
@@ -305,7 +327,7 @@
     <div class="status-badge" id="statusText">Trens Desacoplados. Selecione uma cabine para operar.</div>
 
     <div class="railway-container">
-        <div id="train1" class="train has-fault" style="left: 10px;">
+        <div id="train1" class="train has-fault show-fpi" style="left: 10px;">
             <div id="t1-c1" class="cabin cabin-left"><div class="mode-display"></div></div>
             <div class="car"></div><div class="car"></div><div class="car"></div><div class="car"></div>
             <div id="t1-c2" class="cabin cabin-right"><div class="mode-display"></div></div>
@@ -333,13 +355,13 @@
         const trainFaults = { 1: true, 2: false };
 
         const cabinStates = {
-            't1-c1': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' },
-            't1-c2': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' },
-            't2-c1': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' },
-            't2-c2': { isIC: false, isManual: false, mode: '', lever: 'NEUTRO' }
+            't1-c1': { isIC: true, isOFF: false, isSocorro: false, mode: '', lever: 'NEUTRO' },
+            't1-c2': { isIC: true, isOFF: false, isSocorro: false, mode: '', lever: 'NEUTRO' },
+            't2-c1': { isIC: false, isOFF: false, isSocorro: false, mode: '', lever: 'NEUTRO' },
+            't2-c2': { isIC: false, isOFF: false, isSocorro: false, mode: '', lever: 'NEUTRO' }
         };
 
-        const trainWidth = 142;
+        const trainWidth = 142; // Composição original restaurada: 2 cabines + 4 carros
         const step = 3;
         let moveInterval = null;
 
@@ -362,6 +384,20 @@
                 btn.classList.remove('fault');
                 trainEl.classList.remove('has-fault');
             }
+            updateFpiVisibility(trainNum);
+        }
+
+        function updateFpiVisibility(trainNum) {
+            const trainEl = document.getElementById('train' + trainNum);
+            const c1 = cabinStates[`t${trainNum}-c1`].isIC;
+            const c2 = cabinStates[`t${trainNum}-c2`].isIC;
+            
+            // Só exibe FPI nos carros se o IC estiver ativado em alguma cabine daquele trem
+            if (c1 || c2) {
+                trainEl.classList.add('show-fpi');
+            } else {
+                trainEl.classList.remove('show-fpi');
+            }
         }
 
         function selectCabin(cabinId) {
@@ -374,10 +410,11 @@
 
             const state = cabinStates[activeCabin];
             document.getElementById('btnIC').classList.toggle('active', state.isIC);
-            document.getElementById('btnMANUAL').classList.toggle('active', state.isManual);
+            document.getElementById('btnOFF').classList.toggle('active', state.isOFF);
+            document.getElementById('btnSocorro').classList.toggle('active', state.isSocorro);
             
             document.querySelectorAll('.btn-mode-spec').forEach(b => {
-                if(b.id !== 'btnMANUAL') b.classList.remove('active');
+                if(b.id !== 'btnOFF') b.classList.remove('active');
             });
             if (state.mode) document.getElementById('btn' + state.mode).classList.add('active');
 
@@ -389,13 +426,29 @@
             if (!activeCabin) return;
             cabinStates[activeCabin].isIC = !cabinStates[activeCabin].isIC;
             document.getElementById('btnIC').classList.toggle('active', cabinStates[activeCabin].isIC);
+            
+            const trainNum = activeCabin.startsWith('t1') ? 1 : 2;
+            updateFpiVisibility(trainNum);
             updateAllCabinDisplays();
         }
 
-        function toggleManual() {
+        function toggleOFF() {
             if (!activeCabin) return;
-            cabinStates[activeCabin].isManual = !cabinStates[activeCabin].isManual;
-            document.getElementById('btnMANUAL').classList.toggle('active', cabinStates[activeCabin].isManual);
+            cabinStates[activeCabin].isOFF = !cabinStates[activeCabin].isOFF;
+            if (cabinStates[activeCabin].isOFF) {
+                cabinStates[activeCabin].mode = '';
+                document.querySelectorAll('.btn-mode-spec').forEach(b => {
+                    if(b.id !== 'btnOFF') b.classList.remove('active');
+                });
+            }
+            document.getElementById('btnOFF').classList.toggle('active', cabinStates[activeCabin].isOFF);
+            updateAllCabinDisplays();
+        }
+
+        function toggleSocorro() {
+            if (!activeCabin) return;
+            cabinStates[activeCabin].isSocorro = !cabinStates[activeCabin].isSocorro;
+            document.getElementById('btnSocorro').classList.toggle('active', cabinStates[activeCabin].isSocorro);
             updateAllCabinDisplays();
         }
 
@@ -403,9 +456,13 @@
             if (!activeCabin) return;
             const state = cabinStates[activeCabin];
             state.mode = (state.mode === mode) ? '' : mode;
+            if (state.mode) {
+                state.isOFF = false;
+                document.getElementById('btnOFF').classList.remove('active');
+            }
 
             document.querySelectorAll('.btn-mode-spec').forEach(b => {
-                if(b.id !== 'btnMANUAL') b.classList.remove('active');
+                if(b.id !== 'btnOFF') b.classList.remove('active');
             });
             if (state.mode) document.getElementById('btn' + state.mode).classList.add('active');
             
@@ -427,8 +484,9 @@
                 let siglas = [];
 
                 if (state.isIC) siglas.push('FPI');
-                if (state.isManual) siglas.push('MAN');
+                if (state.isOFF) siglas.push('OFF');
                 if (state.mode) siglas.push(state.mode);
+                if (state.isSocorro) siglas.push('SOC');
 
                 if (siglas.length > 0) {
                     display.innerText = siglas.join(' ');
@@ -440,27 +498,50 @@
             }
         }
 
-        function move(direction) {
+        function move() {
             if (!activeCabin) return;
 
             const isTrain1Active = activeCabin.startsWith('t1');
             const activeTrainNum = isTrain1Active ? 1 : 2;
+            const state = cabinStates[activeCabin];
 
             // --- REGRA DE OURO: TREM COM FALHA NÃO POSSUI TRAÇÃO PRÓPRIA ---
             if (trainFaults[activeTrainNum]) {
-                statusText.innerHTML = `❌ FALHA DE TRAÇÃO CRÍTICA!<br><small>O Trem ${activeTrainNum} está avariado. Assuma o controle do Trem Rebocador.</small>`;
+                statusText.innerHTML = `❌ FALHA DE TRAÇÃO CRÍTICA!<br><small>O Trem ${activeTrainNum} está avariado. Assuma o comando do Trem Rebocador.</small>`;
                 statusText.style.color = "#dc3545";
                 return; 
             }
 
+            // --- REGRAS DE MOVIMENTAÇÃO DE ACORDO COM O MANUAL ---
+            let canMove = false;
+            let finalDirection = ''; 
+
+            // Para frente: OFF ou MCS + Frente
+            if (state.lever === 'FRENTE' && (state.isOFF || state.mode === 'MCS')) {
+                canMove = true;
+                if (activeCabin === 't1-c2' || activeCabin === 't2-c2') finalDirection = 'forward';
+                if (activeCabin === 't1-c1' || activeCabin === 't2-c1') finalDirection = 'backward';
+            } 
+            // Para trás: OFF + Ré
+            else if (state.isOFF && state.lever === 'RE') {
+                canMove = true;
+                if (activeCabin === 't1-c2' || activeCabin === 't2-c2') finalDirection = 'backward';
+                if (activeCabin === 't1-c1' || activeCabin === 't2-c1') finalDirection = 'forward';
+            }
+
+            if (!canMove) {
+                statusText.innerHTML = `⚠️ COMANDO INVÁLIDO!<br><small>Para Frente: Selecione OFF ou MCS + Alavanca FRENTE.<br>Para Trás: Selecione OFF + Alavanca RÉ.</small>`;
+                statusText.style.color = "#ffc107";
+                return;
+            }
+
             // --- REGRA DE VALIDAÇÃO DO REBOQUE (FALSO MANUAL) ---
             if (isCoupled) {
-                // Checa se o bloco oposto (se estiver em falha) liberou o reboque via Falso Manual
                 if (trainFaults[1]) {
                     const stateT1C2 = cabinStates['t1-c2'];
-                    const fmT1Pronto = stateT1C2.isManual && (stateT1C2.lever === 'FRENTE');
+                    const fmT1Pronto = stateT1C2.isOFF && stateT1C2.lever === 'FRENTE';
                     if (!fmT1Pronto) {
-                        statusText.innerHTML = `⚠️ BLOQUEIO: Trem 1 está em Falha!<br><small>Monte Falso Manual em T1 - Intermediária (Manual + Alavanca em FRENTE)</small>`;
+                        statusText.innerHTML = `⚠️ BLOQUEIO: Trem 1 está em Falha!<br><small>Monte Falso Manual em T1 - Intermediária (Configurar OFF + Alavanca em FRENTE)</small>`;
                         statusText.style.color = "#dc3545";
                         return;
                     }
@@ -468,9 +549,9 @@
 
                 if (trainFaults[2]) {
                     const stateT2C1 = cabinStates['t2-c1'];
-                    const fmT2Pronto = stateT2C1.isManual && (stateT2C1.lever === 'FRENTE');
+                    const fmT2Pronto = stateT2C1.isOFF && stateT2C1.lever === 'FRENTE';
                     if (!fmT2Pronto) {
-                        statusText.innerHTML = `⚠️ BLOQUEIO: Trem 2 está em Falha!<br><small>Monte Falso Manual em T2 - Intermediária (Manual + Alavanca em FRENTE)</small>`;
+                        statusText.innerHTML = `⚠️ BLOQUEIO: Trem 2 está em Falha!<br><small>Monte Falso Manual em T2 - Intermediária (Configurar OFF + Alavanca em FRENTE)</small>`;
                         statusText.style.color = "#dc3545";
                         return;
                     }
@@ -480,12 +561,7 @@
                 statusText.style.color = "#28a745";
             }
 
-            let modifier = 1;
-            if (activeCabin === 't1-c1' || activeCabin === 't2-c1') {
-                modifier = (direction === 'forward') ? -1 : 1;
-            } else {
-                modifier = (direction === 'forward') ? 1 : -1;
-            }
+            let modifier = (finalDirection === 'forward') ? 1 : -1;
 
             if (isCoupled) {
                 pos1 += step * modifier;
@@ -508,7 +584,7 @@
 
         function couple() {
             isCoupled = true;
-            statusText.innerText = "Trens Encostados. Arme o Falso Manual na cabine interna do trem avariado.";
+            statusText.innerText = "Trens Encostados. Arme o Falso Manual (OFF + Alavanca FRENTE) na cabine intermediária do trem avariado.";
             statusText.style.color = "#ffc107";
         }
 
@@ -523,24 +599,18 @@
         }
 
         const btnForward = document.getElementById('btnForward');
-        const btnBack = document.getElementById('btnBack');
 
-        function startMove(dir) {
+        function startMove() {
             if (moveInterval) clearInterval(moveInterval);
-            move(dir);
-            moveInterval = setInterval(() => move(dir), 80);
+            move();
+            moveInterval = setInterval(() => move(), 80);
         }
         function stopMove() { clearInterval(moveInterval); }
 
-        btnForward.addEventListener('touchstart', (e) => { e.preventDefault(); startMove('forward'); });
+        btnForward.addEventListener('touchstart', (e) => { e.preventDefault(); startMove(); });
         btnForward.addEventListener('touchend', stopMove);
-        btnForward.addEventListener('mousedown', () => startMove('forward'));
+        btnForward.addEventListener('mousedown', () => startMove());
         btnForward.addEventListener('mouseup', stopMove);
-
-        btnBack.addEventListener('touchstart', (e) => { e.preventDefault(); startMove('backward'); });
-        btnBack.addEventListener('touchend', stopMove);
-        btnBack.addEventListener('mousedown', () => startMove('backward'));
-        btnBack.addEventListener('mouseup', stopMove);
 
         updatePositions();
     </script>
